@@ -14,9 +14,13 @@ namespace ChessAPI.Infrastructure
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<User>().HasData(
-                new User() { Name = "Firstuser1", Data = new UserData() { Login = "first1", Password = "12345", Role = "User" } },
-                new User() { Name = "Secontuser23", Data = new UserData() { Login = "second2", Password = "12345", Role = "User" } },
-                new User() { Name = "mainAdmin", Data = new UserData() { Login = "admin", Password = "admin", Role = "Admin" } });
+                new User { Id = -1, Name = "Firstuser1" },
+                new User { Id = -2, Name = "Secontuser23" },
+                new User { Id = -3, Name = "mainAdmin" });
+            modelBuilder.Entity<User>().OwnsOne(u => u.Data).HasData(
+                new UserData { UserId = -1, Login = "first1", Password = "12345", Role = "User" },
+                new UserData { UserId = -2, Login = "second2", Password = "12345", Role = "User" },
+                new UserData { UserId = -3, Login = "admin", Password = "admin", Role = "Admin" });
 
         }
     }
