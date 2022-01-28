@@ -1,5 +1,6 @@
 ﻿using ChessAPI.Infrastructure;
 using ChessAPI.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +58,15 @@ namespace ChessAPI.Controllers
 
             // если пользователь не найден
             return null;
+        }
+
+        [HttpGet]
+        [Authorize]
+        public ActionResult<User> Get()
+        {
+            var user = User.Identity?.Name;
+            var result = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == user);
+            return Ok(result);
         }
     }
 }
