@@ -68,5 +68,53 @@ namespace ChessAPI.Controllers
             var result = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == user);
             return Ok(result);
         }
+        
+        [HttpPost]
+        public ActionResult CreateAccount(RegistrationModel registrationData)
+        {
+            var loginIsValid = _dbContext.Users.Where(u => u.Data!.Login == registrationData.Login).Count() == 0;
+            if (!loginIsValid)
+                ModelState.AddModelError("Login", "Login is already taken");
+            
+            if (ModelState.IsValid)
+            {
+                var user = new User
+                {
+                    Name = registrationData.Name,
+                    Data = new()
+                    {
+                        Login = registrationData.Login,
+                        Password = registrationData.Password,
+                        Role = "User"
+                    }
+                };
+                _dbContext.Users.Add(user);
+                _dbContext.SaveChanges();
+                return Ok("Account has been create. You can get token.");
+            }
+
+            return ValidationProblem();
+        }
+        
+        [HttpGet]
+        [Route("/UserData/{login}")]
+        [Authorize(Roles = "Admin")]
+        public ActionResult GetUserData(string login)
+        {
+            var result = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == login);
+
+            if (result == null) return NotFound("User not found");
+
+            return Ok(result);
+        }
+        [HttpGet]
+        [Route("/UserData")]
+        [Authorize(Roles = "Admin")]
+        public ActionResult<IEnumerable<User>> GetUsersData()
+        {
+            var result = _dbContext.Users.Select(u => u).ToList();
+
+            return Ok(result);
+        }
     }
 }
