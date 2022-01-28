@@ -1,6 +1,7 @@
 ﻿using ChessAPI.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -11,13 +12,18 @@ namespace ChessAPI.Controllers
     [ApiController]
     public class AccountController : ControllerBase
     {
-        [HttpPost("/token")]
-        public ActionResult<string> Token(string username, string password)
+        AppdbContext _dbContext;
+        public AccountController(AppdbContext dbContext)
         {
-            var identity = GetIdentity(username, password);
+            _dbContext = dbContext;
+        }
+        [HttpPost("/token")]
+        public ActionResult<(string,string)> Token(string login, string password)
+        {
+            var identity = GetIdentity(login, password);
             if (identity == null)
             {
-                return BadRequest(new { errorText = "Invalid username or password." });
+                return BadRequest(new { errorText = "Invalid login or password." });
             }
 
             var now = DateTime.UtcNow;
@@ -29,18 +35,18 @@ namespace ChessAPI.Controllers
                     signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
             var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
 
-            return Ok();
+            return Ok((login,encodedJwt));
         }
 
         private ClaimsIdentity GetIdentity(string username, string password)
         {
-            Person person = people.FirstOrDefault(x => x.Login == username && x.Password == password);
-            if (person != null)
+            var user = _dbContext.Users.Include(u => u.Data).FirstOrDefault(x => x.Data.Login == username && x.Data.Password == password);
+            if (user != null)
             {
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimsIdentity.DefaultNameClaimType, person.Login),
-                    new Claim(ClaimsIdentity.DefaultRoleClaimType, person.Role)
+                    new Claim(ClaimsIdentity.DefaultNameClaimType, user.Data.Login),
+                    new Claim(ClaimsIdentity.DefaultRoleClaimType, user.Data.Role)
                 };
                 ClaimsIdentity claimsIdentity =
                 new ClaimsIdentity(claims, "Token", ClaimsIdentity.DefaultNameClaimType,
@@ -48,7 +54,7 @@ namespace ChessAPI.Controllers
                 return claimsIdentity;
             }
 
-            // если пользователя не найдено
+            // если пользователь не найден
             return null;
         }
     }
