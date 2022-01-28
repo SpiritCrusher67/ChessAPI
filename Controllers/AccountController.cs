@@ -1,4 +1,5 @@
 ﻿using ChessAPI.Infrastructure;
+using ChessAPI.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +19,7 @@ namespace ChessAPI.Controllers
             _dbContext = dbContext;
         }
         [HttpPost("/token")]
-        public ActionResult<(string,string)> Token(string login, string password)
+        public ActionResult<TokenModel> Token(string login, string password)
         {
             var identity = GetIdentity(login, password);
             if (identity == null)
@@ -35,7 +36,7 @@ namespace ChessAPI.Controllers
                     signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
             var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
 
-            return Ok((login,encodedJwt));
+            return Ok(new TokenModel(encodedJwt,login));
         }
 
         private ClaimsIdentity GetIdentity(string username, string password)
