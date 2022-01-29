@@ -3,6 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 using ChessAPI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using ChessAPI.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 string connection = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -10,6 +11,7 @@ string connection = builder.Configuration.GetConnectionString("DefaultConnection
 // Add services to the container.
 builder.Services.AddDbContext<AppdbContext>((DbContextOptionsBuilder options) =>
     options.UseSqlServer(connection));
+builder.Services.AddSignalR();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {         
@@ -57,6 +59,7 @@ builder.Services.AddSwaggerGen(c =>
           }
         });
 });
+builder.Services.AddSingleton<BoardsService>();
 
 var app = builder.Build();
 
@@ -72,7 +75,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-
+app.MapHub<ChessHub>("api/chessHub");
 app.MapControllers();
 
 app.Run();
