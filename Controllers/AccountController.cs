@@ -20,7 +20,7 @@ namespace ChessAPI.Controllers
             _dbContext = dbContext;
         }
         [HttpPost("/token")]
-        public ActionResult<TokenModel> Token(string login, string password)
+        public ActionResult Token(string login, string password)
         {
             var identity = GetIdentity(login, password);
             if (identity == null)
