@@ -1,5 +1,5 @@
 ﻿using ChessAPI.Hubs;
-using ChessLibrary.Boards;
+using ChessLibrary.Main_units;
 using Microsoft.AspNetCore.SignalR;
 
 namespace ChessAPI.Infrastructure
@@ -21,8 +21,8 @@ namespace ChessAPI.Infrastructure
             _allActiveRooms[roomId] = board;
             NewRoomCreateEvent?.Invoke(roomId, ownerLogin);
 
-            board.CheckHasSeted += async (from, to) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {from.CurrentSide} side set CHECK to {to.CurrentSide}.");
-            board.CheckMateHasSeted += async (winner) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {winner.CurrentSide} set CHECK MATE! Match has ended.");
+            board.CheckHasSetedEvent += async (from, to) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {from.CurrentSide} side set CHECK to {to.CurrentSide}.");
+            board.CheckMateHasSetedEvent += async (winner) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {winner.CurrentSide} set CHECK MATE! Match has ended.");
             board.MoveHasMakedEvent += async (from, to) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {to.FigureSide.ToString()} side make move from (y:{from.Y},x:{from.X}) to (y:{to.Y},x:{to.X})");
         }
 

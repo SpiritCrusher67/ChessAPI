@@ -1,8 +1,9 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using ChessAPI.Infrastructure;
-using ChessLibrary.Boards;
+using ChessLibrary.Main_units;
+using ChessLibrary.Takeing_Behaviors;
+using ChessLibrary.Factories;
 using Microsoft.AspNetCore.Authorization;
-using ChessLibrary.Units;
 
 namespace ChessAPI.Hubs
 {
@@ -24,8 +25,9 @@ namespace ChessAPI.Hubs
 
         public async Task CreateRoom()
         {
-            var board = new Board();
-            board.InitializeBoard();
+            var takeing = new DefaultTakeingBehavior();
+            var factory = new DefaultFiguresFactory();
+            var board = new DefaultBoard(takeing, factory);
             
             var roomId = Guid.NewGuid().ToString().Substring(0, 6);
             await Groups.AddToGroupAsync(Context.ConnectionId, roomId);

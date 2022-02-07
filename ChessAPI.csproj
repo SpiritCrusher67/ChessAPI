@@ -13,13 +13,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="ChessLibrary">
-      <HintPath>..\..\..\Desktop\ChessLibrary1\ChessLibrary\bin\Release\net6.0\ChessLibrary.dll</HintPath>
-    </Reference>
+    <Folder Include="wwwroot\js\" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="wwwroot\js\" />
+    <Reference Include="ChessLibrary">
+      <HintPath>..\ChessLibrary\bin\Release\net6.0\ChessLibrary.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
