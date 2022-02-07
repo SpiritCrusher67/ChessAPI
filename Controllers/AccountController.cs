@@ -20,7 +20,7 @@ namespace ChessAPI.Controllers
             _dbContext = dbContext;
         }
         [HttpPost("/token")]
-        public ActionResult<TokenModel> Token(string login, string password)
+        public ActionResult Token(string login, string password)
         {
             var identity = GetIdentity(login, password);
             if (identity == null)
@@ -96,6 +96,45 @@ namespace ChessAPI.Controllers
             return ValidationProblem();
         }
         
+        [HttpPut]
+        [Authorize]
+        public ActionResult UpdateAccount(User newData)
+        {
+            var user = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == User.Identity!.Name);
+            if (user == null) return BadRequest();
+            user.Name = newData.Name;
+            user.Data!.Password = newData.Data!.Password;
+            _dbContext.SaveChanges();
+            return Ok(user);
+        }
+
+        [HttpDelete]
+        [Authorize]
+        public ActionResult DeleteUser()
+        {
+            var user = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == User.Identity!.Name);
+            if (user == null) return BadRequest();
+
+            _dbContext.Users.Remove(user);
+            _dbContext.SaveChanges();
+
+            return Ok();
+        }
+
+        [HttpDelete]
+        [Route("/{id}")]
+        [Authorize(Roles = "Admin")]
+        public ActionResult DeleteUser(int id)
+        {
+            var user = _dbContext.Users.FirstOrDefault(u => u.Id == id);
+            if (user == null) return NotFound();
+
+            _dbContext.Users.Remove(user);
+            _dbContext.SaveChanges();
+
+            return Ok();
+        }
+
         [HttpGet]
         [Route("/UserData/{login}")]
         [Authorize(Roles = "Admin")]
