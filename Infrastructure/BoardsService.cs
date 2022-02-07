@@ -24,6 +24,7 @@ namespace ChessAPI.Infrastructure
             board.CheckHasSetedEvent += async (from, to) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {from.CurrentSide} side set CHECK to {to.CurrentSide}.");
             board.CheckMateHasSetedEvent += async (winner) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {winner.CurrentSide} set CHECK MATE! Match has ended.");
             board.MoveHasMakedEvent += async (from, to) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {to.FigureSide.ToString()} side make move from (y:{from.Y},x:{from.X}) to (y:{to.Y},x:{to.X})");
+            board.FigureHasTakedEvent += async (figure) => await _hubContext.Clients.Group(roomId).SendAsync("ReceiveMessage", $"SERVER: {figure.Side} {figure.Name} has been TAKED");
         }
 
         /// <summary>
