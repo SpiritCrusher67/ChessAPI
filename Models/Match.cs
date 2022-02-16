@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-
+﻿
 namespace ChessAPI.Models
 {
     public class Match
@@ -8,12 +7,10 @@ namespace ChessAPI.Models
         
         public int OwnderId { get; set; }
 
-        [ForeignKey("OwnderId")]
-        public User Owner { get; set; }
+        //public User Owner { get; set; }
         public int? OpponentId { get; set; }
 
-        [ForeignKey("OpponentId")]
-        public User? Oponnent { get; set; }
+        //public User? Oponnent { get; set; }
         
         public string SecuenceOfMoves { get; set; }
     }
