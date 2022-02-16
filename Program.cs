@@ -10,6 +10,7 @@ string connection = builder.Configuration.GetConnectionString("DefaultConnection
 
 // Add services to the container.
 
+builder.Services.AddScoped<IDBSqlExecuter, DefaultDBSqlExecuter>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {         
