@@ -1,7 +1,6 @@
 ﻿using ChessAPI.Infrastructure;
 using ChessAPI.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -13,17 +12,24 @@ namespace ChessAPI.Controllers
     [ApiController]
     public class AccountController : ControllerBase
     {
-        [HttpPost("/token")]
-        public ActionResult Token(string login, string password)
+        IDBSqlExecuter _dBSqlExecuter;
+        public AccountController(IDBSqlExecuter dBSqlExecuter)
         {
-            var identity = GetIdentity(login, password);
+            _dBSqlExecuter = dBSqlExecuter;
+        }
+
+        #region Public actions
+
+        [HttpPost("/token")]
+        public async Task<ActionResult> Token(string login, string password)
+        {
+            var identity = await GetIdentity(login, password);
+
             if (identity == null)
-            {
                 return BadRequest(new { errorText = "Invalid login or password." });
-            }
 
             var now = DateTime.UtcNow;
-            // создаем JWT-токен
+
             var jwt = new JwtSecurityToken(
                     notBefore: now,
                     claims: identity.Claims,
@@ -31,123 +37,187 @@ namespace ChessAPI.Controllers
                     signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
             var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
 
-            return Ok(new TokenModel(encodedJwt,login));
+            return Ok(new TokenModel(encodedJwt, login));
         }
 
-        private ClaimsIdentity GetIdentity(string username, string password)
-        {
-            var user = "";
-            if (user != null)
-            {
-                var claims = new List<Claim>
-                {
-                    new Claim(ClaimsIdentity.DefaultNameClaimType, user),
-                    new Claim(ClaimsIdentity.DefaultRoleClaimType, user)
-                };
-                ClaimsIdentity claimsIdentity =
-                new ClaimsIdentity(claims, "Token", ClaimsIdentity.DefaultNameClaimType,
-                    ClaimsIdentity.DefaultRoleClaimType);
-                return claimsIdentity;
-            }
-
-            // если пользователь не найден
-            return null;
-        }
-
-        [HttpGet]
-        [Authorize]
-        public ActionResult Get()
-        {
-            //var user = User.Identity?.Name;
-            //var result = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == user);
-            return Ok();
-        }
-        
         [HttpPost]
-        public ActionResult CreateAccount(RegistrationModel registrationData)
+        public async Task<ActionResult> CreateAccount(RegistrationModel registrationData)
         {
-            //var loginIsValid = _dbContext.Users.Where(u => u.Data!.Login == registrationData.Login).Count() == 0;
-            //if (!loginIsValid)
-            //    ModelState.AddModelError("Login", "Login is already taken");
-            
-            //if (ModelState.IsValid)
-            //{
-            //    var user = new User
-            //    {
-            //        Name = registrationData.Name,
-            //        Data = new()
-            //        {
-            //            Login = registrationData.Login,
-            //            Password = registrationData.Password,
-            //            Role = "User"
-            //        }
-            //    };
-            //    _dbContext.Users.Add(user);
-            //    _dbContext.SaveChanges();
-            //    return Ok("Account has been create. You can get token.");
-            //}
+            if (!await CheLoginAvailability(registrationData.Login))
+                ModelState.AddModelError("Login", "Login is already taken");
+
+            if (ModelState.IsValid)
+            {
+                var query = "INSERT INTO Users VALUES (@login, @password, @name, @role)";
+                var parameters = new Dictionary<string, object>
+            {
+                { "@login", registrationData.Login },
+                { "@password", registrationData.Password },
+                { "@name", registrationData.Name },
+                { "@role", "User" }
+            };
+
+                if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                    return Ok("Account has been create. You can get token.");
+
+                return BadRequest();
+            }
 
             return ValidationProblem();
         }
-        
+
+        #endregion
+
+        #region Authorize actions
+        [HttpGet]
+        [Authorize]
+        public async Task<ActionResult> Get()
+        {
+            var user = User.Identity?.Name;
+            var query = "SELECT * FROM Users WHERE Login = @login";
+            var parameters = new Dictionary<string, object>();
+            parameters.Add("@login", user!);
+
+            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
+            return Ok(result);
+        }
+
         [HttpPut]
+        [Route("/ChangePassword")]
         [Authorize]
-        public ActionResult UpdateAccount()
+        public async Task<ActionResult> ChangePassword(string oldPassword, string newPassword)
         {
-            //var user = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == User.Identity!.Name);
-            //if (user == null) return BadRequest();
-            //user.Name = newData.Name;
-            //user.Data!.Password = newData.Data!.Password;
-            //_dbContext.SaveChanges();
-            return Ok();
+            var login = User.Identity?.Name;
+
+            if (await GetUserRoleByAuthData(login!, oldPassword) == string.Empty)
+                return BadRequest(new { errorText = "Invalid old password." });
+
+            var query = "UPDATE Users SET Password = @password WHERE Login = @login";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", login! },
+                { "@password", newPassword }
+            };
+
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                return Ok();
+
+            return BadRequest();
         }
 
         [HttpDelete]
         [Authorize]
-        public ActionResult DeleteUser()
+        public async Task<ActionResult> DeleteUserAsync(string password)
         {
-            //var user = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == User.Identity!.Name);
-            //if (user == null) return BadRequest();
+            var login = User.Identity?.Name;
 
-            //_dbContext.Users.Remove(user);
-            //_dbContext.SaveChanges();
+            if (await GetUserRoleByAuthData(login!, password) == string.Empty)
+                return BadRequest(new { errorText = "Invalid password." });
 
-            return Ok();
+            var query = "DELETE FROM Users WHERE Login = @login";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", login! }
+            };
+
+            //TODO: Logout if user deleted
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                return Ok();
+
+            return BadRequest();
         }
+        #endregion
+
+        #region Admin actions
 
         [HttpDelete]
-        [Route("/{id}")]
+        [Route("/Delete/{login}")]
         [Authorize(Roles = "Admin")]
-        public ActionResult DeleteUser(int id)
+        public async Task<ActionResult> DeleteUser(string login)
         {
-            //var user = _dbContext.Users.FirstOrDefault(u => u.Id == id);
-            //if (user == null) return NotFound();
+            var query = "DELETE FROM Users WHERE Login = @login";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", login! }
+            };
 
-            //_dbContext.Users.Remove(user);
-            //_dbContext.SaveChanges();
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                return Ok();
 
-            return Ok();
+            return BadRequest(new { errorText = "User not found." });
         }
 
         [HttpGet]
         [Route("/UserData/{login}")]
         [Authorize(Roles = "Admin")]
-        public ActionResult GetUserData(string login)
+        public async Task<ActionResult> GetUserDataAsync(string login)
         {
-            //var result = _dbContext.Users.FirstOrDefault(u => u.Data!.Login == login);
+            var query = "SELECT * FROM Users WHERE Login = @login";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", login! }
+            };
 
-            //if (result == null) return NotFound("User not found");
+            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
 
-            return Ok();
+            if (result == string.Empty)
+                return BadRequest(new { errorText = "User not found." });
+
+            return Ok(result);
         }
+
         [HttpGet]
         [Route("/UserData")]
         [Authorize(Roles = "Admin")]
-        public ActionResult GetUsersData()
+        public async Task<ActionResult> GetUsersDataAsync()
         {
-            //var result = _dbContext.Users.Select(u => u).ToList();
+            var query = "SELECT * FROM Users";
 
-            return Ok();
+            var result = await _dBSqlExecuter.GetJsonResult(query);
+
+            return Ok(result);
         }
+        #endregion
+
+        #region Utility methods
+        private async Task<ClaimsIdentity?> GetIdentity(string login, string password)
+        {
+            var userRole = await GetUserRoleByAuthData(login, password);
+
+            if (userRole == string.Empty)
+                return null;
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimsIdentity.DefaultNameClaimType, login),
+                new Claim(ClaimsIdentity.DefaultRoleClaimType, userRole)
+            };
+            ClaimsIdentity claimsIdentity =
+            new ClaimsIdentity(claims, "Token", ClaimsIdentity.DefaultNameClaimType,
+                ClaimsIdentity.DefaultRoleClaimType);
+
+            return claimsIdentity;
+        }
+
+        private async Task<string> GetUserRoleByAuthData(string login, string password)
+        {
+            var query = "SELECT Role FROM Users WHERE Login = @login AND Password = @password";
+            var parameters = new Dictionary<string, object>();
+            parameters.Add("@login", login);
+            parameters.Add("@password", password);
+
+            return await _dBSqlExecuter.GetJsonResult(query, parameters);
+        }
+
+        private async Task<bool> CheLoginAvailability(string login)
+        {
+            var query = "SELECT Login FROM Users WHERE Login = @login";
+            var parameters = new Dictionary<string, object>();
+            parameters.Add("@login", login);
+
+            return await _dBSqlExecuter.GetJsonResult(query, parameters) == string.Empty;
+        }
+        #endregion
     }
 }
+
