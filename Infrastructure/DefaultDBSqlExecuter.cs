@@ -49,6 +49,37 @@ namespace ChessAPI.Infrastructure
             return await command.ExecuteNonQueryAsync();
         }
 
+        public async Task<(string, int)> ExecuteQueryOutIntParameter(string sqlQuery, string outParamName, Dictionary<string, object>? inParams = null)
+        {
+            var resultList = new List<string>();
+            var resultOutParamValue = 0;
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                var command = new SqlCommand(sqlQuery, connection);
+                if (inParams?.Count > 0)
+                    AddParamsToCommand(command, inParams);
+                var outParam = new SqlParameter
+                {
+                    ParameterName = outParamName,
+                    SqlDbType = System.Data.SqlDbType.Int,
+                    Direction = System.Data.ParameterDirection.Output,
+                };
+                command.Parameters.Add(outParam);
+
+                var reader = await command.ExecuteReaderAsync();
+                if (reader.HasRows)
+                   await ReadDataToListAsync(reader, resultList);
+
+                await reader.CloseAsync();
+                resultOutParamValue = (int)outParam.Value;
+            }
+
+            return (ConvertListToJson(resultList), resultOutParamValue);
+        }
+
         #region Utility methods
         private void AddParamsToCommand(SqlCommand command, Dictionary<string, object> parameters)
         {
