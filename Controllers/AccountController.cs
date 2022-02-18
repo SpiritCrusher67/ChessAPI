@@ -126,6 +126,41 @@ namespace ChessAPI.Controllers
 
             return BadRequest();
         }
+
+        #region Friend actions 
+
+        [HttpGet("/GetFriends")]
+        [Authorize]
+        public async Task<ActionResult> GetFriendsListAsync()
+        {
+            var query = "SELECT Friends.FriendLogin as Login, Users.Name FROM Friends JOIN Users ON Users.Login = Friends.FriendLogin WHERE Friends.UserLogin = @login";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", User.Identity!.Name! }
+            };
+
+            return Ok(await _dBSqlExecuter.GetJsonResult(query, parameters));
+        }
+
+        [HttpDelete("/RemoveFriend")]
+        [Authorize]
+        public async Task<ActionResult> DeleteFrinedAsync(string friendLogin)
+        {
+            var query = "DELETE FROM Friends WHERE UserLogin = @login AND FriendLogin = @friend";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", User.Identity!.Name! },
+                { "@friend", friendLogin }
+            };
+
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 2)
+                return Ok();
+
+            return BadRequest();
+        }
+
+        #endregion
+
         #endregion
 
         #region Admin actions
