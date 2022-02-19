@@ -109,7 +109,7 @@ namespace ChessAPI.Controllers
         }
 
         [HttpGet("{login}")]
-        [Authorize]
+        //[Authorize]
         public async Task<ActionResult> GetAsync(string login, int page, int limit)
         {
             if (page <= 0 || limit <= 0)
@@ -117,8 +117,8 @@ namespace ChessAPI.Controllers
             var userLogin = User.Identity?.Name ?? string.Empty;
 
             var query = @$"SELECT *, (SELECT COUNT(Id) FROM PostComments WHERE PostId = Posts.Id) AS Comments,
-                           (SELECT COUNT(Id) FROM PostLikes WHERE PostId = Posts.Id) as Likes, 
-                           (select IIF( (SELECT COUNT(Id) FROM PostLikes WHERE UserLogin = @user) > 0,'true','false')) as Liked 
+                           (SELECT COUNT(PostLikes.PostId) FROM PostLikes WHERE PostId = Posts.Id) as Likes, 
+                           (select IIF( (SELECT COUNT(PostLikes.PostId) FROM PostLikes WHERE UserLogin = @user) > 0,'true','false')) as Liked 
                            FROM Posts ORDER BY Date DESC OFFSET {page * limit - limit} ROWS FETCH NEXT {limit} ROWS ONLY;
                            SET @count = (SELECT Count(Id) FROM Posts WHERE UserLogin = @login)";
             var parameters = new Dictionary<string, object>

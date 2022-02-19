@@ -27,6 +27,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
+builder.Services.AddCors();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -82,7 +83,11 @@ app.UseFileServer(new FileServerOptions
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseCors(builder => 
+{
+    builder.AllowAnyOrigin();
+    builder.AllowAnyMethod();
+});
 
 app.MapHub<ChessHub>("api/chessHub");
 app.MapControllers();
