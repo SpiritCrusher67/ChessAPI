@@ -15,5 +15,7 @@ namespace ChessAPI.Models
         [Compare("Password", ErrorMessage = "Passwords mismatch")]
         public string ConfirmPassword { get; set; }
 
+        public IFormFile? ProfileImage { get; set; }
+
     }
 }

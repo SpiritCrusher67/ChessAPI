@@ -11,5 +11,7 @@ namespace ChessAPI.Models
         [MaxLength(600)]
         public string Text { get; set; }
         public string Tags { get; set; }
+        public IFormFile? PostImage { get; set; }
+
     }
 }
