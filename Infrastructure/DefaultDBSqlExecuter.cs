@@ -1,4 +1,5 @@
-﻿using System.Data.SqlClient;
+﻿using Newtonsoft.Json;
+using System.Data.SqlClient;
 using System.Text;
 
 namespace ChessAPI.Infrastructure
@@ -11,9 +12,9 @@ namespace ChessAPI.Infrastructure
             connectionString = configuration.GetConnectionString("DefaultConnection");
         }
 
-        public async Task<string> GetJsonResult(string sqlQuery, Dictionary<string, object>? parameters = null)
+        public async Task<IEnumerable<Dictionary<string, object>>> GetJsonResult(string sqlQuery, Dictionary<string, object>? parameters = null)
         {
-            var resultList = new List<string>();
+            var resultList = new List<Dictionary<string, object>>();
 
             using (var connection = new SqlConnection(connectionString))
             {
@@ -33,7 +34,7 @@ namespace ChessAPI.Infrastructure
                 await reader.CloseAsync();
             }
 
-            return ConvertListToJson(resultList);
+            return resultList;
         }
 
         public async Task<int> ExecuteQuery(string sqlQuery, Dictionary<string, object>? parameters = null)
@@ -49,9 +50,9 @@ namespace ChessAPI.Infrastructure
             return await command.ExecuteNonQueryAsync();
         }
 
-        public async Task<(string, int)> ExecuteQueryOutIntParameter(string sqlQuery, string outParamName, Dictionary<string, object>? inParams = null)
+        public async Task<(IEnumerable<Dictionary<string, object>>, int)> ExecuteQueryOutIntParameter(string sqlQuery, string outParamName, Dictionary<string, object>? inParams = null)
         {
-            var resultList = new List<string>();
+            var resultList = new List<Dictionary<string, object>>();
             var resultOutParamValue = 0;
 
             using (var connection = new SqlConnection(connectionString))
@@ -77,7 +78,7 @@ namespace ChessAPI.Infrastructure
                 resultOutParamValue = (int)outParam.Value;
             }
 
-            return (ConvertListToJson(resultList), resultOutParamValue);
+            return (resultList, resultOutParamValue);
         }
 
         #region Utility methods
@@ -87,21 +88,19 @@ namespace ChessAPI.Infrastructure
                 command.Parameters.Add(new SqlParameter(param.Key, param.Value));
         }
 
-        private async Task ReadDataToListAsync(SqlDataReader reader,List<string> list)
+        private async Task ReadDataToListAsync(SqlDataReader reader,List<Dictionary<string, object>> list)
         {
             var columns = GetColumnsFromReader(reader);
 
             while (await reader.ReadAsync())
             {
-                var item = new StringBuilder();
+                var item = new Dictionary<string,object>();
 
                 foreach (var column in columns)
-                {
-                    var value = reader[column]?.ToString()?.Trim();
-                    item.Append(columns.Count > 1 ? $"\"{column}\": \"{value}\", " : value);
-                }
+                    item.Add(column, reader[column]);
 
-                list.Add(columns.Count > 1 ? $"{{ {item} }}" : item.ToString());
+
+                list.Add(item);
             }
         }
 
