@@ -60,7 +60,7 @@ namespace ChessAPI.Controllers
             return Ok(result);
         }
 
-        [HttpPost("/Message")]
+        [HttpPost("Message")]
         public async Task<ActionResult> SendMessageAsync(int chatId, [StringLength(100, MinimumLength = 1)] string message)
         {
             if (!ModelState.IsValid)
@@ -82,7 +82,7 @@ namespace ChessAPI.Controllers
         #endregion
 
         #region Invite actions
-        [HttpPost("/Invite")]
+        [HttpPost("Invite")]
         public async Task<ActionResult> SendInviteToFriendsAsync(string userLogin)
         {
             var login = User.Identity!.Name!;
@@ -105,7 +105,7 @@ namespace ChessAPI.Controllers
             return BadRequest();
         }
 
-        [HttpPost("/Invite/Accept")]
+        [HttpPost("Invite/Accept")]
         public async Task<ActionResult> AcceptInviteAsync(int messageId)
         {
             var query = "EXECUTE AcceptInviteToFriends @id, @login";
@@ -118,7 +118,7 @@ namespace ChessAPI.Controllers
             await _dBSqlExecuter.ExecuteQuery(query, parameters);
             return Ok();
         }
-        [HttpPost("/Invite/Decline")]
+        [HttpPost("Invite/Decline")]
         public async Task<ActionResult> DeclineInviteAsync(int messageId)
         {
             var query = "EXECUTE DeclineInviteToFriends @id, @login";

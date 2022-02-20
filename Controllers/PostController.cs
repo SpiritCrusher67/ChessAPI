@@ -18,10 +18,10 @@ namespace ChessAPI.Controllers
             _appEnvironment = appEnvironment;
         }
 
-        [HttpGet("/News")]
+        [HttpGet("News")]
         public async Task<ActionResult> GetNewsAsync(int page, int limit) => await GetAsync("admin", page, limit);
 
-        [HttpGet("/GetPostImage")]
+        [HttpGet("GetPostImage")]
         public async Task<ActionResult> GetPostImage(int id)
         {
             var query = "SELECT UserLogin FROM Posts WHERE Id = @id";
@@ -42,7 +42,7 @@ namespace ChessAPI.Controllers
 
         #region Likes acions
         [Authorize]
-        [HttpGet("/SetLike/{id:int}")]
+        [HttpGet("SetLike/{id:int}")]
         public async Task<ActionResult> SetLikeAsync(int id)
         {
             var query = "INSERT INTO PostLikes VALUES (@id, @login, DEFAULT)";
@@ -59,7 +59,7 @@ namespace ChessAPI.Controllers
         }
 
         [Authorize]
-        [HttpDelete("/RemoveLike/{id:int}")]
+        [HttpDelete("RemoveLike/{id:int}")]
         public async Task<ActionResult> DeleteLikeAsync(int id)
         {
             var query = "DELETE FROM PostLikes WHERE UserLogin = @login AND PostId = @id";
@@ -78,7 +78,7 @@ namespace ChessAPI.Controllers
 
         #region Comments acions
         [Authorize]
-        [HttpPost("/CreateComment")]
+        [HttpPost("CreateComment")]
         public async Task<ActionResult> CreateCommentAsync(int id, [StringLength(70, MinimumLength = 5)] string comment)
         {
             if (!ModelState.IsValid)
@@ -99,7 +99,7 @@ namespace ChessAPI.Controllers
         }
 
         [Authorize]
-        [HttpDelete("/RemoveComment/{id:int}")]
+        [HttpDelete("RemoveComment/{id:int}")]
         public async Task<ActionResult> DeleteCommentAsync(int id)
         {
             var query = "DELETE FROM PostComments WHERE UserLogin = @login AND Id = @id";

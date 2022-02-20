@@ -22,7 +22,8 @@ namespace ChessAPI.Controllers
 
         #region Public actions
 
-        [HttpPost("/token")]
+        [HttpPost]
+        [Route("token")]
         public async Task<ActionResult> Token(string login, string password)
         {
             var identity = await GetIdentity(login, password);
@@ -84,7 +85,7 @@ namespace ChessAPI.Controllers
             return ValidationProblem();
         }
 
-        [HttpGet("/GetName")]
+        [HttpGet("GetName")]
         public async Task<ActionResult> GetUserName(string login)
         {
             var query = "SELECT Name From Users WHERE Login = @login";
@@ -99,7 +100,7 @@ namespace ChessAPI.Controllers
 
         }
 
-        [HttpGet("/GetProfileImage")]
+        [HttpGet("GetProfileImage")]
         public async Task<ActionResult> GetProfileImage(string login)
         {
             var path = $"{_appEnvironment.WebRootPath}/img/UserImages/{login ?? User.Identity?.Name}/Profile.jpg";
@@ -127,7 +128,7 @@ namespace ChessAPI.Controllers
         }
 
         [HttpPut]
-        [Route("/ChangePassword")]
+        [Route("ChangePassword")]
         [Authorize]
         public async Task<ActionResult> ChangePassword(string oldPassword, string newPassword)
         {
@@ -171,7 +172,7 @@ namespace ChessAPI.Controllers
             return BadRequest();
         }
 
-        [HttpGet("/Users/ByName")]
+        [HttpGet("Users/ByName")]
         [Authorize]
         public async Task<ActionResult> GetUsersByNameAsync(string name)
         {
@@ -182,7 +183,7 @@ namespace ChessAPI.Controllers
 
         #region Friend actions 
 
-        [HttpGet("/GetFriends")]
+        [HttpGet("GetFriends")]
         [Authorize]
         public async Task<ActionResult> GetFriendsListAsync()
         {
@@ -195,7 +196,7 @@ namespace ChessAPI.Controllers
             return Ok(await _dBSqlExecuter.GetJsonResult(query, parameters));
         }
 
-        [HttpDelete("/RemoveFriend")]
+        [HttpDelete("RemoveFriend")]
         [Authorize]
         public async Task<ActionResult> DeleteFrinedAsync(string friendLogin)
         {
@@ -212,7 +213,7 @@ namespace ChessAPI.Controllers
             return BadRequest();
         }
 
-        [HttpGet("/Friends/ByName")]
+        [HttpGet("Friends/ByName")]
         [Authorize]
         public async Task<ActionResult> GetFrinedsByNameAsync(string name)
         {
@@ -234,7 +235,7 @@ namespace ChessAPI.Controllers
         #region Admin actions
 
         [HttpDelete]
-        [Route("/Delete/{login}")]
+        [Route("Delete/{login}")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult> DeleteUser(string login)
         {
@@ -251,7 +252,7 @@ namespace ChessAPI.Controllers
         }
 
         [HttpGet]
-        [Route("/UserData/{login}")]
+        [Route("UserData/{login}")]
         [Authorize]
         public async Task<ActionResult> GetUserDataAsync(string login)
         {
@@ -270,7 +271,7 @@ namespace ChessAPI.Controllers
         }
 
         [HttpGet]
-        [Route("/UserData")]
+        [Route("UserData")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult> GetUsersDataAsync()
         {
