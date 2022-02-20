@@ -19,7 +19,7 @@ namespace ChessAPI.Controllers
         [HttpGet]
         public async Task<ActionResult> GetChats()
         {
-            var query = @"SELECT Id, Users.Name FROM Chats 
+            var query = @"SELECT Id, Users.Name, Users.Login FROM Chats 
                         JOIN ChatUsers ON ChatUsers.ChatId = Chats.Id
                         JOIN Users ON Users.Login = (SELECT UserLogin FROM ChatUsers WHERE ChatUsers.ChatId = Chats.Id AND ChatUsers.UserLogin <> @login)
                         WHERE ChatUsers.UserLogin = @login";
@@ -56,9 +56,6 @@ namespace ChessAPI.Controllers
             };
 
             var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
-
-            if (result == string.Empty)
-                return BadRequest();
 
             return Ok(result);
         }
