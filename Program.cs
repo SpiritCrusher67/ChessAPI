@@ -75,8 +75,8 @@ if (app.Environment.IsDevelopment())
 app.UseFileServer(new FileServerOptions
 {
     FileProvider = new PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")),
-    RequestPath = "/demo",
+        Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/img")),
+    RequestPath = "/images",
     EnableDefaultFiles = true
 });
 
@@ -85,8 +85,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseCors(builder => 
 {
-    builder.AllowAnyOrigin();
-    builder.AllowAnyMethod();
+    builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader().WithExposedHeaders("totalPages", "page","limit");
 });
 
 app.MapHub<ChessHub>("api/chessHub");
