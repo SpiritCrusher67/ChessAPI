@@ -11,13 +11,34 @@ namespace ChessAPI.Controllers
     public class PostController : ControllerBase
     {
         IDBSqlExecuter _dBSqlExecuter;
-        public PostController(IDBSqlExecuter dBSqlExecuter)
+        IWebHostEnvironment _appEnvironment;
+        public PostController(IDBSqlExecuter dBSqlExecuter, IWebHostEnvironment appEnvironment)
         {
             _dBSqlExecuter = dBSqlExecuter;
+            _appEnvironment = appEnvironment;
         }
 
         [HttpGet("/News")]
         public async Task<ActionResult> GetNewsAsync(int page, int limit) => await GetAsync("admin", page, limit);
+
+        [HttpGet("/GetPostImage")]
+        public async Task<ActionResult> GetPostImage(int id)
+        {
+            var query = "SELECT UserLogin FROM Posts WHERE Id = @id";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@id", id }
+            };
+
+            var userLogin = (await _dBSqlExecuter.GetJsonResult(query, parameters)).FirstOrDefault()?["UserLogin"].ToString()?.Trim();
+            
+            var path = $"{_appEnvironment.WebRootPath}/img/UserImages/{userLogin}/{id}.jpg";
+
+            if (System.IO.File.Exists(path))
+                return PhysicalFile(path, "image/jpeg");
+
+            return BadRequest();
+        }
 
         #region Likes acions
         [Authorize]
@@ -109,17 +130,19 @@ namespace ChessAPI.Controllers
         }
 
         [HttpGet("{login}")]
-        //[Authorize]
+        [Authorize]
         public async Task<ActionResult> GetAsync(string login, int page, int limit)
         {
             if (page <= 0 || limit <= 0)
                 return BadRequest(new { errorText = "page and limit must be > 0" });
             var userLogin = User.Identity?.Name ?? string.Empty;
 
-            var query = @$"SELECT *, (SELECT COUNT(Id) FROM PostComments WHERE PostId = Posts.Id) AS Comments,
+            var query = @$"SELECT *, (SELECT Name FROM Users WHERE Users.Login = @login) AS AuthorName, 
+                           (SELECT COUNT(Id) FROM PostComments WHERE PostId = Posts.Id) AS Comments,
                            (SELECT COUNT(PostLikes.PostId) FROM PostLikes WHERE PostId = Posts.Id) as Likes, 
-                           (select IIF( (SELECT COUNT(PostLikes.PostId) FROM PostLikes WHERE UserLogin = @user) > 0,'true','false')) as Liked 
-                           FROM Posts ORDER BY Date DESC OFFSET {page * limit - limit} ROWS FETCH NEXT {limit} ROWS ONLY;
+                           (select IIF( (SELECT COUNT(PostLikes.PostId) FROM PostLikes WHERE UserLogin = @user AND PostLikes.PostId = Posts.Id) > 0,0,-1)) as Liked 
+                           FROM Posts WHERE Posts.UserLogin = @login
+                           ORDER BY Date DESC OFFSET {page * limit - limit} ROWS FETCH NEXT {limit} ROWS ONLY;
                            SET @count = (SELECT Count(Id) FROM Posts WHERE UserLogin = @login)";
             var parameters = new Dictionary<string, object>
             {
@@ -140,22 +163,39 @@ namespace ChessAPI.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<ActionResult> Post(PostModel model)
+        public async Task<ActionResult> Post([FromForm]PostModel model)
         {
             if (!ModelState.IsValid)
                 return ValidationProblem();
 
-            var query = "INSERT INTO Posts VALUES (@login, @title, @text, @tags, DEFAULT)";
+            var login = User.Identity!.Name!;
+
+            var query = "INSERT INTO Posts VALUES (@login, @title, @text, @tags, DEFAULT); SET @id = SCOPE_IDENTITY()";
             var parameters = new Dictionary<string, object> 
             {
-                { "@login", User.Identity!.Name! },
+                { "@login", login },
                 { "@title", model.Title },
                 { "@text", model.Text },
                 { "@tags", model.Tags }
             };
 
-            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+            var id = (await _dBSqlExecuter.ExecuteQueryOutIntParameter(query, "@id", parameters)).Item2;
+            if (id != 0)
+            {
+                if (model.PostImage != null)
+                {
+                    var path = $"{_appEnvironment.WebRootPath}/img/UserImages/{login}";
+
+                    Directory.CreateDirectory(path);
+
+                    using (var fileStream = new FileStream($"{path}/{id}.jpg", FileMode.Create))
+                    {
+                        await model.PostImage.CopyToAsync(fileStream);
+                    }
+                }
+
                 return Ok();
+            }
 
             return BadRequest();
         }
