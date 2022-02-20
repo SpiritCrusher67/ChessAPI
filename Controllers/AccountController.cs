@@ -181,6 +181,25 @@ namespace ChessAPI.Controllers
             return Ok(await _dBSqlExecuter.GetJsonResult(query));
         }
 
+        [HttpGet]
+        [Route("UserData/{login}")]
+        [Authorize]
+        public async Task<ActionResult> GetUserDataAsync(string login)
+        {
+            var query = "SELECT * FROM Users WHERE Login = @login";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", login! }
+            };
+
+            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
+
+            if (result.Count() == 0)
+                return BadRequest(new { errorText = "User not found." });
+
+            return Ok(result);
+        }
+
         #region Friend actions 
 
         [HttpGet("GetFriends")]
@@ -230,57 +249,6 @@ namespace ChessAPI.Controllers
 
         #endregion
 
-        #endregion
-
-        #region Admin actions
-
-        [HttpDelete]
-        [Route("Delete/{login}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult> DeleteUser(string login)
-        {
-            var query = "DELETE FROM Users WHERE Login = @login";
-            var parameters = new Dictionary<string, object>
-            {
-                { "@login", login! }
-            };
-
-            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
-                return Ok();
-
-            return BadRequest(new { errorText = "User not found." });
-        }
-
-        [HttpGet]
-        [Route("UserData/{login}")]
-        [Authorize]
-        public async Task<ActionResult> GetUserDataAsync(string login)
-        {
-            var query = "SELECT * FROM Users WHERE Login = @login";
-            var parameters = new Dictionary<string, object>
-            {
-                { "@login", login! }
-            };
-
-            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
-
-            if (result.Count() == 0)
-                return BadRequest(new { errorText = "User not found." });
-
-            return Ok(result);
-        }
-
-        [HttpGet]
-        [Route("UserData")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult> GetUsersDataAsync()
-        {
-            var query = "SELECT * FROM Users";
-
-            var result = await _dBSqlExecuter.GetJsonResult(query);
-
-            return Ok(result);
-        }
         #endregion
 
         #region Utility methods
