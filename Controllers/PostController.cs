@@ -12,10 +12,12 @@ namespace ChessAPI.Controllers
     {
         IDBSqlExecuter _dBSqlExecuter;
         IWebHostEnvironment _appEnvironment;
-        public PostController(IDBSqlExecuter dBSqlExecuter, IWebHostEnvironment appEnvironment)
+        OnlineUsersService _onlineUsersService;
+        public PostController(IDBSqlExecuter dBSqlExecuter, OnlineUsersService onlineUsersService, IWebHostEnvironment appEnvironment)
         {
             _dBSqlExecuter = dBSqlExecuter;
             _appEnvironment = appEnvironment;
+            _onlineUsersService = onlineUsersService;
         }
 
         [HttpGet("News")]
@@ -150,15 +152,20 @@ namespace ChessAPI.Controllers
                 { "@user", userLogin },
             };
 
-            var result = await _dBSqlExecuter.ExecuteQueryOutIntParameter(query, "@count", parameters);
+            (var result, var postsCount) = await _dBSqlExecuter.ExecuteQueryOutIntParameter(query, "@count", parameters);
 
-            var totalPages = Math.Ceiling((decimal)result.Item2 / limit);
+            var isPostAuthorOnline = _onlineUsersService.IsUserOnline(login);
+
+            foreach (var post in result)
+                post.Add("IsAuthorOnline", isPostAuthorOnline);
+            
+            var totalPages = Math.Ceiling((decimal)postsCount / limit);
 
             Response.Headers.Append("totalPages", totalPages.ToString());
             Response.Headers.Append("page", page.ToString());
             Response.Headers.Append("limit", limit.ToString());
 
-            return Ok(result.Item1);
+            return Ok(result);
         }
 
         [HttpPost]

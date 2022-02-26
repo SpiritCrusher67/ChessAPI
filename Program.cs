@@ -4,13 +4,15 @@ using ChessAPI.Infrastructure;
 using Microsoft.OpenApi.Models;
 using ChessAPI.Hubs;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 string connection = builder.Configuration.GetConnectionString("DefaultConnection");
 
 // Add services to the container.
 
-builder.Services.AddScoped<IDBSqlExecuter, DefaultDBSqlExecuter>();
+builder.Services.AddTransient<IDBSqlExecuter, DefaultDBSqlExecuter>();
+builder.Services.AddSingleton<IUserIdProvider, AuthUserIdProvider>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {         
@@ -24,10 +26,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
 
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    (path.StartsWithSegments("/api/Hubs")))
+                    context.Token = accessToken;
+
+                return Task.CompletedTask;
+            }
+        };
     });
+builder.Services.AddCors();
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
-builder.Services.AddCors();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -61,6 +77,7 @@ builder.Services.AddSwaggerGen(c =>
         });
 });
 builder.Services.AddSingleton<BoardsService>();
+builder.Services.AddSingleton<OnlineUsersService>();
 
 var app = builder.Build();
 
@@ -72,23 +89,26 @@ if (app.Environment.IsDevelopment())
 
 }
 
+app.UseHttpsRedirection();
+app.UseCors(builder =>
+{
+    builder.WithOrigins("http://localhost:3000").AllowAnyMethod().AllowAnyHeader().WithExposedHeaders("totalPages", "page", "limit");
+});
+
 app.UseFileServer(new FileServerOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/img")),
-    RequestPath = "/images",
-    EnableDefaultFiles = true
+    RequestPath = "/images"
 });
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors(builder => 
-{
-    builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader().WithExposedHeaders("totalPages", "page","limit");
-});
 
-app.MapHub<ChessHub>("api/chessHub");
+
+app.MapHub<ChessHub>("api/Hubs/chessHub");
+app.MapHub<UsersHub>("api/Hubs/usersHub");
+
 app.MapControllers();
 
 app.Run();

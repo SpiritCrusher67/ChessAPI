@@ -14,10 +14,12 @@ namespace ChessAPI.Controllers
     {
         IDBSqlExecuter _dBSqlExecuter;
         IWebHostEnvironment _appEnvironment;
-        public AccountController(IDBSqlExecuter dBSqlExecuter, IWebHostEnvironment appEnvironment)
+        OnlineUsersService _onlineUsersService;
+        public AccountController(IDBSqlExecuter dBSqlExecuter, OnlineUsersService onlineUsersService, IWebHostEnvironment appEnvironment)
         {
             _dBSqlExecuter = dBSqlExecuter;
             _appEnvironment = appEnvironment;
+            _onlineUsersService = onlineUsersService;
         }
 
         #region Public actions
@@ -53,7 +55,7 @@ namespace ChessAPI.Controllers
 
             if (ModelState.IsValid)
             {
-                var query = "INSERT INTO Users VALUES (@login, @password, @name, @role)";
+                var query = "EXECUTE @res = CreateUser @login, @password, @name, @role";
                 var parameters = new Dictionary<string, object>
                 {
                     { "@login", registrationData.Login },
@@ -62,7 +64,7 @@ namespace ChessAPI.Controllers
                     { "@role", "User" }
                 };
 
-                if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                if ((await _dBSqlExecuter.ExecuteQueryOutIntParameter(query,"@res", parameters)).Item2 == 1)
                 {
                     if (registrationData.ProfileImage != null)
                     {
@@ -118,12 +120,20 @@ namespace ChessAPI.Controllers
         [Authorize]
         public async Task<ActionResult> Get()
         {
-            var user = User.Identity?.Name;
-            var query = "SELECT * FROM Users WHERE Login = @login";
+            var userLogin = User.Identity?.Name;
+            var query = @"SELECT *,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = @login OR LoseUserLogin = @login) AS GamesCount,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = @login) AS WinsCount
+                        FROM Users
+                        WHERE Login = @login";
             var parameters = new Dictionary<string, object>();
-            parameters.Add("@login", user!);
+            parameters.Add("@login", userLogin!);
 
             var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
+
+            foreach (var user in result)
+                user.Add("IsUserOnline", _onlineUsersService.IsUserOnline(userLogin));
+
             return Ok(result);
         }
 
@@ -176,9 +186,21 @@ namespace ChessAPI.Controllers
         [Authorize]
         public async Task<ActionResult> GetUsersByNameAsync(string name)
         {
-            var query = $"SELECT * FROM Users WHERE Name LIKE '%{name}%'";
+            var query = $@"SELECT *,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = Login OR LoseUserLogin = Login) AS GamesCount,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = Login) AS WinsCount
+                        FROM Users
+                        WHERE Name LIKE '%{name}%'";
 
-            return Ok(await _dBSqlExecuter.GetJsonResult(query));
+            var result = await _dBSqlExecuter.GetJsonResult(query);
+
+            foreach (var user in result)
+            {
+                var userLogin = user["Login"].ToString().Trim();
+                user.Add("IsUserOnline", _onlineUsersService.IsUserOnline(userLogin));
+            }
+
+            return Ok(result);
         }
 
         [HttpGet]
@@ -186,16 +208,26 @@ namespace ChessAPI.Controllers
         [Authorize]
         public async Task<ActionResult> GetUserDataAsync(string login)
         {
-            var query = "SELECT * FROM Users WHERE Login = @login";
+            var userLogin = User.Identity?.Name;
+            var query = @"SELECT *,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = @login OR LoseUserLogin = @login) AS GamesCount,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = @login) AS WinsCount,
+                        (SELECT COUNT(*) FROM Friends WHERE UserLogin = @login AND FriendLogin = @userLogin) AS IsFriend
+                        FROM Users
+                        WHERE Login = @login";
             var parameters = new Dictionary<string, object>
             {
-                { "@login", login! }
+                { "@login", login! },
+                { "@userLogin", userLogin! }
             };
 
             var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
 
             if (result.Count() == 0)
                 return BadRequest(new { errorText = "User not found." });
+
+            foreach (var user in result)
+                user.Add("IsUserOnline", _onlineUsersService.IsUserOnline(login));
 
             return Ok(result);
         }
@@ -206,13 +238,26 @@ namespace ChessAPI.Controllers
         [Authorize]
         public async Task<ActionResult> GetFriendsListAsync()
         {
-            var query = "SELECT Friends.FriendLogin as Login, Users.Name FROM Friends JOIN Users ON Users.Login = Friends.FriendLogin WHERE Friends.UserLogin = @login";
+            var query = @"SELECT Friends.FriendLogin as Login, Users.Name,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = Friends.FriendLogin OR LoseUserLogin = Friends.FriendLogin) AS GamesCount,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = Friends.FriendLogin) AS WinsCount
+                        FROM Friends 
+                        JOIN Users ON Users.Login = Friends.FriendLogin 
+                        WHERE Friends.UserLogin = @login";
             var parameters = new Dictionary<string, object>
             {
                 { "@login", User.Identity!.Name! }
             };
 
-            return Ok(await _dBSqlExecuter.GetJsonResult(query, parameters));
+            var result = await _dBSqlExecuter.GetJsonResult(query,parameters);
+
+            foreach (var user in result)
+            {
+                var userLogin = user["Login"].ToString().Trim();
+                user.Add("IsUserOnline", _onlineUsersService.IsUserOnline(userLogin));
+            }
+
+            return Ok(result);
         }
 
         [HttpDelete("RemoveFriend")]
@@ -236,15 +281,26 @@ namespace ChessAPI.Controllers
         [Authorize]
         public async Task<ActionResult> GetFrinedsByNameAsync(string name)
         {
-            var query = @$"SELECT Friends.FriendLogin as Login, Users.Name FROM Friends 
+            var query = $@"SELECT Friends.FriendLogin as Login, Users.Name,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = Friends.FriendLogin OR LoseUserLogin = Friends.FriendLogin) AS GamesCount,
+                        (SELECT COUNT(*) FROM GamesResults WHERE WinUserLogin = Friends.FriendLogin) AS WinsCount
+                        FROM Friends 
                         JOIN Users ON Users.Login = Friends.FriendLogin 
-                        WHERE Friends.UserLogin = @login AND Users.Name LIKE '%{name}%' ";
+                        WHERE Friends.UserLogin = @login AND Users.Name LIKE '%{name}%'";
             var parameters = new Dictionary<string, object>
             {
                 { "@login", User.Identity!.Name! }
             };
 
-            return Ok(await _dBSqlExecuter.GetJsonResult(query, parameters));
+            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
+
+            foreach (var user in result)
+            {
+                var userLogin = user["Login"].ToString().Trim();
+                user.Add("IsUserOnline", _onlineUsersService.IsUserOnline(userLogin));
+            }
+
+            return Ok(result);
         }
 
         #endregion
@@ -256,7 +312,7 @@ namespace ChessAPI.Controllers
         {
             var userRole = await GetUserRoleByAuthData(login, password);
 
-            if (userRole == null)
+            if (string.IsNullOrEmpty(userRole))
                 return null;
 
             var claims = new List<Claim>
@@ -273,14 +329,21 @@ namespace ChessAPI.Controllers
 
         private async Task<string?> GetUserRoleByAuthData(string login, string password)
         {
-            var query = "SELECT Role FROM Users WHERE Login = @login AND Password = @password";
-            var parameters = new Dictionary<string, object>();
-            parameters.Add("@login", login);
-            parameters.Add("@password", password);
+            var query = "EXEC @result = TryAuthorize @login, @password";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", login },
+                { "@password", password }
+            };
 
-            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
-
-            return (result.FirstOrDefault()?["Role"]?.ToString());
+            if ((await _dBSqlExecuter.ExecuteQueryOutIntParameter(query,"@result",parameters)).Item2 == 1)
+            {
+                parameters.Remove("@password");
+                query = "SELECT Role FROM Users WHERE Login = @login";
+                var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
+                return (result.FirstOrDefault()?["Role"]?.ToString());
+            }
+            return string.Empty;
         }
 
         private async Task<bool> CheLoginAvailability(string login)

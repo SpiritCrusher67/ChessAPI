@@ -1,6 +1,8 @@
-﻿using ChessAPI.Infrastructure;
+﻿using ChessAPI.Hubs;
+using ChessAPI.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using System.ComponentModel.DataAnnotations;
 
 namespace ChessAPI.Controllers
@@ -11,9 +13,13 @@ namespace ChessAPI.Controllers
     public class ChatController : ControllerBase
     {
         IDBSqlExecuter _dBSqlExecuter;
-        public ChatController(IDBSqlExecuter dBSqlExecuter)
+        IHubContext<UsersHub> _hubContext;
+        OnlineUsersService _onlineUsersService;
+        public ChatController(IDBSqlExecuter dBSqlExecuter, OnlineUsersService onlineUsersService, IHubContext<UsersHub> hubContext)
         {
             _dBSqlExecuter = dBSqlExecuter;
+            _hubContext = hubContext;
+            _onlineUsersService = onlineUsersService;
         }
         #region Chat actions
         [HttpGet]
@@ -28,7 +34,15 @@ namespace ChessAPI.Controllers
                 { "@login", User.Identity!.Name! }
             };
 
-            return Ok(await _dBSqlExecuter.GetJsonResult(query, parameters));
+            var result = await _dBSqlExecuter.GetJsonResult(query, parameters);
+
+            foreach (var user in result)
+            {
+                var userLogin = user["Login"].ToString().Trim();
+                user.Add("IsUserOnline", _onlineUsersService.IsUserOnline(userLogin));
+            }
+
+            return Ok(result);
         }
 
         [HttpPost]
@@ -60,6 +74,25 @@ namespace ChessAPI.Controllers
             return Ok(result);
         }
 
+        [HttpDelete("Message")]
+        public async Task<ActionResult> DeleteMessageAsync(int id)
+        {
+            var query = @"DELETE FROM Messages WHERE Messages.Id =
+                        (SELECT Messages.Id FROM Messages 
+                        JOIN ChatUsers ON Messages.ChatId = ChatUsers.ChatId
+                        WHERE Messages.Id = @id AND ChatUsers.UserLogin = @login)";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@login", User.Identity!.Name! },
+                { "@id", id }
+            };
+
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                return Ok();
+
+            return BadRequest();
+        }
+
         [HttpPost("Message")]
         public async Task<ActionResult> SendMessageAsync(int chatId, [StringLength(100, MinimumLength = 1)] string message)
         {
@@ -74,8 +107,16 @@ namespace ChessAPI.Controllers
                 { "@login", User.Identity!.Name!}
             };
 
-            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 2)
+            int.TryParse((await _dBSqlExecuter.GetJsonResult(query, parameters)).FirstOrDefault()?["Id"].ToString(),out int id);
+
+            if (id > 0)
+            {
+                query = "SELECT UserLogin FROM ChatUsers WHERE ChatId = @chatId AND UserLogin <> @login";
+                var receiverLogin = (await _dBSqlExecuter.GetJsonResult(query, parameters)).First()["UserLogin"].ToString();
+                var msg = (await _dBSqlExecuter.GetJsonResult("SELECT * FROM Messages WHERE Id = @id", new Dictionary<string, object> { { "@id", id } })).First();
+                await _hubContext.Clients.User(receiverLogin?.Trim()).SendAsync("ReceiveMessage", msg);
                 return Ok();
+            }
 
             return BadRequest();
         }
@@ -97,6 +138,29 @@ namespace ChessAPI.Controllers
             {
                 { "@chatId", chatId },
                 { "@login", User.Identity!.Name!}
+            };
+
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+                return Ok();
+
+            return BadRequest();
+        }
+        [HttpPost("InviteToGame")]
+        public async Task<ActionResult> SendInviteToGameAsync(string userLogin, string gameId)
+        {
+            var login = User.Identity!.Name!;
+
+            if (userLogin == login)
+                return BadRequest(new { errorText = "You can't send invvite to yourself" });
+
+            var chatId = await GetOrCreateChatAsync(login, userLogin);
+
+            var query = "INSERT INTO Messages VALUES (@gameId, @chatId, @login, '2')";
+            var parameters = new Dictionary<string, object>
+            {
+                { "@chatId", chatId },
+                { "@login", User.Identity!.Name!},
+                { "@gameId", gameId}
             };
 
             if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
