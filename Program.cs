@@ -5,6 +5,7 @@ using Microsoft.OpenApi.Models;
 using ChessAPI.Hubs;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.SignalR;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 string connection = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -13,6 +14,7 @@ string connection = builder.Configuration.GetConnectionString("DefaultConnection
 
 builder.Services.AddTransient<IDBSqlExecuter, DefaultDBSqlExecuter>();
 builder.Services.AddSingleton<IUserIdProvider, AuthUserIdProvider>();
+builder.Services.AddTransient<ITokenService, TokenService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {         
@@ -22,7 +24,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
-            IssuerSigningKey = AuthOptions.GetSymmetricSecurityKey(),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["TokenData:SecurityKey"])),
             ValidateIssuerSigningKey = true,
 
         };

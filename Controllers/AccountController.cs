@@ -25,27 +25,6 @@ namespace ChessAPI.Controllers
         #region Public actions
 
         [HttpPost]
-        [Route("token")]
-        public async Task<ActionResult> Token(string login, string password)
-        {
-            var identity = await GetIdentity(login, password);
-
-            if (identity == null)
-                return BadRequest(new { errorText = "Invalid login or password." });
-
-            var now = DateTime.UtcNow;
-
-            var jwt = new JwtSecurityToken(
-                    notBefore: now,
-                    claims: identity.Claims,
-                    expires: now.Add(TimeSpan.FromMinutes(AuthOptions.LIFETIME)),
-                    signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
-            var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
-
-            return Ok(new TokenModel(encodedJwt, login));
-        }
-
-        [HttpPost]
         public async Task<ActionResult> CreateAccount([FromForm]RegistrationModel registrationData)
         {
             if (!await CheLoginAvailability(registrationData.Login))
@@ -137,46 +116,29 @@ namespace ChessAPI.Controllers
             return Ok(result);
         }
 
-        [HttpPut]
-        [Route("ChangePassword")]
-        [Authorize]
-        public async Task<ActionResult> ChangePassword(string oldPassword, string newPassword)
-        {
-            var login = User.Identity?.Name;
-
-            if (await GetUserRoleByAuthData(login!, oldPassword) == string.Empty)
-                return BadRequest(new { errorText = "Invalid old password." });
-
-            var query = "UPDATE Users SET Password = @password WHERE Login = @login";
-            var parameters = new Dictionary<string, object>
-            {
-                { "@login", login! },
-                { "@password", newPassword }
-            };
-
-            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
-                return Ok();
-
-            return BadRequest();
-        }
-
         [HttpDelete]
         [Authorize]
-        public async Task<ActionResult> DeleteUserAsync(string password)
+        public async Task<ActionResult> DeleteUserAsync([FromBody]string password)
         {
-            var login = User.Identity?.Name;
+            var login = User.Identity!.Name!;
 
-            if (await GetUserRoleByAuthData(login!, password) == string.Empty)
-                return BadRequest(new { errorText = "Invalid password." });
-
-            var query = "DELETE FROM Users WHERE Login = @login";
+            var query = "EXEC @result = TryAuthorize @login, @password";
             var parameters = new Dictionary<string, object>
+            {
+                { "@login", login },
+                { "@password", password}
+            };
+
+            if ((await _dBSqlExecuter.ExecuteQueryOutIntParameter(query, "@result", parameters)).Item2 != 1)
+                return Unauthorized();
+
+            query = "DELETE FROM UsersAuthorizationData WHERE Login = @login";
+            parameters = new Dictionary<string, object>
             {
                 { "@login", login! }
             };
 
-            //TODO: Logout if user deleted
-            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) == 1)
+            if (await _dBSqlExecuter.ExecuteQuery(query, parameters) > 0)
                 return Ok();
 
             return BadRequest();
@@ -308,24 +270,6 @@ namespace ChessAPI.Controllers
         #endregion
 
         #region Utility methods
-        private async Task<ClaimsIdentity?> GetIdentity(string login, string password)
-        {
-            var userRole = await GetUserRoleByAuthData(login, password);
-
-            if (string.IsNullOrEmpty(userRole))
-                return null;
-
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimsIdentity.DefaultNameClaimType, login),
-                new Claim(ClaimsIdentity.DefaultRoleClaimType, userRole)
-            };
-            ClaimsIdentity claimsIdentity =
-            new ClaimsIdentity(claims, "Token", ClaimsIdentity.DefaultNameClaimType,
-                ClaimsIdentity.DefaultRoleClaimType);
-
-            return claimsIdentity;
-        }
 
         private async Task<string?> GetUserRoleByAuthData(string login, string password)
         {
